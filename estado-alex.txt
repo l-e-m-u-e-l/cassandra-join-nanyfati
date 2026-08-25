@@ -1,0 +1,83 @@
+===== REPORTE DE ESTADO - nodo de Alex =====
+fecha: mar 25 ago 2026 13:26:43 CST
+distro: Ubuntu 26.04 LTS
+
+== 1. Cassandra instalada? (debe ser 4.1.x, NO 5.0) ==
+paquete apt: NO instalada por apt
+binario en PATH: /opt/cassandra/bin/cassandra
+version: 4.1.12
+NOTA: instalacion por TARBALL en /opt/cassandra (no paquete apt, no systemd)
+
+== 2. Java (debe ser 11) ==
+openjdk version "11.0.31" 2026-04-21
+
+== 3. Servicio ==
+activo: inactive
+habilitado: not-found
+proceso CassandraDaemon: 0 (no esta corriendo)
+
+== 4. cassandra.yaml (valores clave) - ruta real: /opt/cassandra/conf/cassandra.yaml ==
+cluster_name: 'nanyfati'
+      - seeds: "100.64.210.124"
+listen_address: 100.75.231.44
+rpc_address: 100.75.231.44
+broadcast_rpc_address: 100.75.231.44
+endpoint_snitch: GossipingPropertyFileSnitch
+
+== 5. nodetool status ==
+nodetool: Failed to connect to '127.0.0.1:7199' - ConnectException: 'Conexión rehusada (Connection refused)'.
+
+== 6. Tailscale (IP propia y estado) ==
+mi IP: no current Tailscale IPs; state: NeedsLogin
+Logged out.
+Log in at: <link de login omitido a proposito - es de un solo uso>
+
+== 7. Conectividad + latencia a los otros nodos ==
+--- 100.64.210.124 ---
+3 packets transmitted, 0 received, 100% packet loss, time 2047ms
+
+puerto 7000 (gossip): cerrado/inalcanzable
+ruta tailscale (direct=rapido / relay=lento): Log in at: <link de login omitido a proposito - es de un solo uso>
+--- 100.74.29.122 ---
+3 packets transmitted, 0 received, 100% packet loss, time 2049ms
+
+puerto 7000 (gossip): cerrado/inalcanzable
+ruta tailscale (direct=rapido / relay=lento): Log in at: <link de login omitido a proposito - es de un solo uso>
+--- 100.126.124.40 ---
+3 packets transmitted, 0 received, 100% packet loss, time 2048ms
+
+puerto 7000 (gossip): cerrado/inalcanzable
+ruta tailscale (direct=rapido / relay=lento): Log in at: <link de login omitido a proposito - es de un solo uso>
+
+== 8. Errores recientes en el log ==
+Log real: /opt/cassandra/logs/system.log (ultimo arranque: 2026-08-22 19:16)
+
+ERROR [main] CassandraDaemon.java:900 - Exception encountered during startup
+org.apache.cassandra.exceptions.ConfigurationException: Invalid yaml: file:/opt/cassandra/conf/cassandra.yaml
+Caused by: org.yaml.snakeyaml.parser.ParserException: while parsing a block mapping
+  in 'reader', line 11, column 1  ->  expected <block end>, but found '<block sequence start>'
+  in 'reader', line 583, column 3
+
+CAUSA ENCONTRADA: la linea 578 del yaml quedo como
+    seed_provider: 100.64.210.124
+cuando deberia ser solamente
+    seed_provider:
+(la IP del seed ya esta bien puesta mas abajo, en la linea "- seeds:").
+Un sed de configuracion piso la clave seed_provider. Con eso el yaml no parsea
+y Cassandra ni siquiera arranca. Es un arreglo de una linea.
+== 9. RESUMEN / BLOQUEOS ==
+1. BLOQUEO PRINCIPAL: Tailscale esta deslogueado (state: NeedsLogin), sin IP asignada.
+   Alex necesita el correo/clave de la cuenta COMPARTIDA del grupo para hacer
+   'sudo tailscale up'. Eso lo tiene que hacer una persona (login en navegador).
+   Sin eso no hay ruta a ningun nodo (100% packet loss a los tres).
+2. BLOQUEO 2: yaml invalido por la linea 578 (ver seccion 8). Arreglo de una linea.
+3. La IP 100.75.231.44 que quedo en listen_address es de una sesion vieja de Tailscale;
+   hay que reemplazarla por la IP nueva que asignen al reloguear.
+4. Ojo con join-cluster.sh: asume paquete apt + systemd + /etc/cassandra. Aca la
+   instalacion es TARBALL en /opt/cassandra (misma version 4.1.12, ya configurada
+   para nanyfati). Correr ese script instalaria una segunda Cassandra en paralelo.
+   Mejor reusar la que ya esta.
+5. No se pudo medir latencia ni direct/relay hacia los nodos: requiere Tailscale arriba.
+   Queda pendiente para el proximo reporte.
+
+===== FIN DEL REPORTE =====
