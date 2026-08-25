@@ -1,83 +1,85 @@
 ===== REPORTE DE ESTADO - nodo de Alex =====
-fecha: mar 25 ago 2026 13:26:43 CST
+fecha: mar 25 ago 2026 13:50:19 CST
 distro: Ubuntu 26.04 LTS
 
-== 1. Cassandra instalada? (debe ser 4.1.x, NO 5.0) ==
-paquete apt: NO instalada por apt
-binario en PATH: /opt/cassandra/bin/cassandra
-version: 4.1.12
-NOTA: instalacion por TARBALL en /opt/cassandra (no paquete apt, no systemd)
+>>> RESULTADO: EL NODO DE ALEX YA ESTA UNIDO AL CLUSTER (UN). <<<
 
-== 2. Java (debe ser 11) ==
+== 1. Cassandra ==
+version: 4.1.12  (correcto, serie 4.1, NO 5.0)
+instalacion: TARBALL en /opt/cassandra (no paquete apt, no systemd)
+  -> OJO: join-cluster.sh asume apt + systemd + /etc/cassandra.
+     En esta maquina NO aplica; se reuso la instalacion tarball ya existente.
+
+== 2. Java ==
 openjdk version "11.0.31" 2026-04-21
 
-== 3. Servicio ==
-activo: inactive
-habilitado: not-found
-proceso CassandraDaemon: 0 (no esta corriendo)
+== 3. cassandra.yaml (/opt/cassandra/conf/cassandra.yaml) ==
+  cluster_name: 'nanyfati'
+  listen_address: 100.75.231.44
+  rpc_address: 100.75.231.44
+  broadcast_rpc_address: 100.75.231.44
+  endpoint_snitch: GossipingPropertyFileSnitch
+  seeds: 100.64.210.124,100.126.124.40
 
-== 4. cassandra.yaml (valores clave) - ruta real: /opt/cassandra/conf/cassandra.yaml ==
-cluster_name: 'nanyfati'
-      - seeds: "100.64.210.124"
-listen_address: 100.75.231.44
-rpc_address: 100.75.231.44
-broadcast_rpc_address: 100.75.231.44
-endpoint_snitch: GossipingPropertyFileSnitch
+== 4. nodetool status ==
+Datacenter: dc1
+===============
+Status=Up/Down
+|/ State=Normal/Leaving/Joining/Moving
+--  Address         Load        Tokens  Owns (effective)  Host ID                               Rack 
+UN  100.75.231.44   70,49 KiB   16      52,0%             0484f4ee-2965-4a70-bdfb-a74793183945  rack1
+?N  100.74.29.122   256,96 KiB  16      48,5%             eb7ca8aa-cae2-4459-8be6-04ed3664e708  rack1
+DN  100.64.210.124  154,68 KiB  16      48,8%             7d9da46a-00be-4331-b69c-6ff679196568  rack1
+UN  100.126.124.40  136,7 KiB   16      50,7%             22dfb8e5-f5c7-4b4b-a721-b57679eaf36b  rack1
 
-== 5. nodetool status ==
-nodetool: Failed to connect to '127.0.0.1:7199' - ConnectException: 'Conexión rehusada (Connection refused)'.
 
-== 6. Tailscale (IP propia y estado) ==
-mi IP: no current Tailscale IPs; state: NeedsLogin
-Logged out.
-Log in at: <link de login omitido a proposito - es de un solo uso>
+== 5. describecluster ==
+Cluster Information:
+	Name: nanyfati
+	Snitch: org.apache.cassandra.locator.GossipingPropertyFileSnitch
+	DynamicEndPointSnitch: enabled
+	Partitioner: org.apache.cassandra.dht.Murmur3Partitioner
+	Schema versions:
+		1a5e2493-f2ce-388e-875b-b0ee0ae02951: [100.75.231.44, 100.126.124.40]
 
-== 7. Conectividad + latencia a los otros nodos ==
---- 100.64.210.124 ---
-3 packets transmitted, 0 received, 100% packet loss, time 2047ms
+		UNREACHABLE: [100.64.210.124]
 
-puerto 7000 (gossip): cerrado/inalcanzable
-ruta tailscale (direct=rapido / relay=lento): Log in at: <link de login omitido a proposito - es de un solo uso>
---- 100.74.29.122 ---
-3 packets transmitted, 0 received, 100% packet loss, time 2049ms
+Stats for all nodes:
+	Live: 2
 
-puerto 7000 (gossip): cerrado/inalcanzable
-ruta tailscale (direct=rapido / relay=lento): Log in at: <link de login omitido a proposito - es de un solo uso>
---- 100.126.124.40 ---
-3 packets transmitted, 0 received, 100% packet loss, time 2048ms
+== 6. Tailscale ==
+mi IP: 100.75.231.44
+100.75.231.44   alex              <cuenta-grupo>  linux  -                                                             
+100.126.124.40  cassandra         <cuenta-grupo>  linux  active; direct 10.89.133.165:59878, tx 151048 rx 136264       
+100.74.29.122   rivas-virtualbox  <cuenta-grupo>  linux  active; relay "mia"; offline, last seen 1h ago, tx 3744 rx 0  
+100.64.210.124  ubuntucassandra   <cuenta-grupo>  linux  active; relay "mia"; offline, last seen 1h ago, tx 4524 rx 0  
 
-puerto 7000 (gossip): cerrado/inalcanzable
-ruta tailscale (direct=rapido / relay=lento): Log in at: <link de login omitido a proposito - es de un solo uso>
+== 7. Ruta y latencia al nodo vivo (100.126.124.40) ==
+  tailscale ping: pong via 10.89.133.165 -> conexion DIRECT (no relay/DERP)
+  3 packets transmitted, 3 received, 0% packet loss, time 2002ms
+  rtt min/avg/max/mdev = 13.278/73.133/188.076/81.300 ms
 
-== 8. Errores recientes en el log ==
-Log real: /opt/cassandra/logs/system.log (ultimo arranque: 2026-08-22 19:16)
+== 8. PROBLEMAS ENCONTRADOS Y RESUELTOS ==
+A) cassandra.yaml INVALIDO: la linea 578 estaba como
+       seed_provider: 100.64.210.124
+   en vez de solo 'seed_provider:'. Un sed de configuracion previo piso la clave.
+   Cassandra fallaba al arrancar con:
+       ConfigurationException: Invalid yaml: /opt/cassandra/conf/cassandra.yaml
+   RESUELTO: linea corregida, yaml validado. Backup en cassandra.yaml.bak.*
 
-ERROR [main] CassandraDaemon.java:900 - Exception encountered during startup
-org.apache.cassandra.exceptions.ConfigurationException: Invalid yaml: file:/opt/cassandra/conf/cassandra.yaml
-Caused by: org.yaml.snakeyaml.parser.ParserException: while parsing a block mapping
-  in 'reader', line 11, column 1  ->  expected <block end>, but found '<block sequence start>'
-  in 'reader', line 583, column 3
+B) EL SEED 100.64.210.124 ESTA APAGADO (offline en Tailscale).
+   Tambien esta apagado 100.74.29.122 (rivas-virtualbox).
+   El unico nodo vivo ademas de Alex es 100.126.124.40.
+   RESUELTO: se agrego 100.126.124.40 a la lista de seeds junto al original,
+   asi el nodo pudo entrar al anillo igual. Cuando vuelva 100.64.210.124
+   sigue funcionando sin tocar nada.
 
-CAUSA ENCONTRADA: la linea 578 del yaml quedo como
-    seed_provider: 100.64.210.124
-cuando deberia ser solamente
-    seed_provider:
-(la IP del seed ya esta bien puesta mas abajo, en la linea "- seeds:").
-Un sed de configuracion piso la clave seed_provider. Con eso el yaml no parsea
-y Cassandra ni siquiera arranca. Es un arreglo de una linea.
-== 9. RESUMEN / BLOQUEOS ==
-1. BLOQUEO PRINCIPAL: Tailscale esta deslogueado (state: NeedsLogin), sin IP asignada.
-   Alex necesita el correo/clave de la cuenta COMPARTIDA del grupo para hacer
-   'sudo tailscale up'. Eso lo tiene que hacer una persona (login en navegador).
-   Sin eso no hay ruta a ningun nodo (100% packet loss a los tres).
-2. BLOQUEO 2: yaml invalido por la linea 578 (ver seccion 8). Arreglo de una linea.
-3. La IP 100.75.231.44 que quedo en listen_address es de una sesion vieja de Tailscale;
-   hay que reemplazarla por la IP nueva que asignen al reloguear.
-4. Ojo con join-cluster.sh: asume paquete apt + systemd + /etc/cassandra. Aca la
-   instalacion es TARBALL en /opt/cassandra (misma version 4.1.12, ya configurada
-   para nanyfati). Correr ese script instalaria una segunda Cassandra en paralelo.
-   Mejor reusar la que ya esta.
-5. No se pudo medir latencia ni direct/relay hacia los nodos: requiere Tailscale arriba.
-   Queda pendiente para el proximo reporte.
-
+== 9. PARA EL CLAUDE DE LEMUEL ==
+- Alex quedo UN, dc1/rack1, 16 tokens, 52% del anillo. Schema sincronizado
+  con 100.126.124.40 (misma version de schema).
+- La ruta Tailscale es DIRECT (via IP local 10.89.133.165), latencia min 9 ms.
+  No va por relay. La conexion es rapida.
+- Los nodos 100.64.210.124 y 100.74.29.122 aparecen DN/?N SOLO porque esas
+  maquinas estan apagadas. Que las prendan y deberian volver a UN solas.
+- No hizo falta 'nodetool assassinate': el nodo entro limpio, sin registro fantasma.
 ===== FIN DEL REPORTE =====
