@@ -11,13 +11,27 @@ if [[ -z "${MYIP:-}" || "$MYIP" != 100.* ]]; then
 fi
 echo "Mi IP de Tailscale: $MYIP"
 
-echo -n "Alcanzo el seed 100.64.210.124? ... "
-ping -c2 -W3 100.64.210.124 >/dev/null 2>&1 && echo "si" || { echo "NO -- revisa que sea la cuenta compartida del grupo"; exit 1; }
+# Basta con que UN nodo del cluster responda: cualquiera sirve de punto de contacto.
+VIVOS=""
+for ip in 100.64.210.124 100.126.124.40 100.74.29.122; do
+  if ping -c2 -W3 "$ip" >/dev/null 2>&1; then
+    echo "   nodo vivo: $ip"
+    VIVOS="${VIVOS:+$VIVOS,}$ip"
+  else
+    echo "   apagado:   $ip"
+  fi
+done
+if [[ -z "$VIVOS" ]]; then
+  echo "!! Ningun nodo del cluster responde. Puede que esten todos apagados,"
+  echo "   o que Tailscale no este bien conectado. Revisa con: tailscale status"
+  exit 1
+fi
 
 cp "$Y" "$Y.bak.$(date +%Y%m%d-%H%M%S)"
 sed -i "s|^listen_address:.*|listen_address: $MYIP|"                 "$Y"
 sed -i "s|^rpc_address:.*|rpc_address: $MYIP|"                       "$Y"
 sed -i "s|^broadcast_rpc_address:.*|broadcast_rpc_address: $MYIP|"   "$Y"
+sed -i "s|- seeds: .*|- seeds: \"$VIVOS\"|"                            "$Y"
 
 python3 -c "import yaml,sys; yaml.safe_load(open('$Y')); print('yaml OK')" || { echo "!! yaml invalido, restaurando"; cp "$(ls -t $Y.bak.* | head -1)" "$Y"; exit 1; }
 grep -E "^cluster_name:|^listen_address:|^rpc_address:|^broadcast_rpc_address:|^endpoint_snitch:" "$Y" | sed 's/^/   /'
